@@ -50,10 +50,14 @@ export function agentLoop(
 			messages: [...context.messages, ...prompts],
 		};
 
+		logger.debug(`[=>    ] agent_start`);
 		stream.push({ type: "agent_start" });
+		logger.debug(`[=>    ] turn_start`);
 		stream.push({ type: "turn_start" });
 		for (const prompt of prompts) {
+			logger.debug(`[=>    ] message_start`);
 			stream.push({ type: "message_start", message: prompt });
+			logger.debug(`[=>    ] message_end`);
 			stream.push({ type: "message_end", message: prompt });
 		}
 
@@ -123,6 +127,10 @@ async function runLoop(
 	// Check for steering messages at start (user may have typed while waiting)
 	let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
 
+	logger.debug(`runLoop >>>`);
+	printAgentMessageArray(`context messages`, currentContext.messages);
+	printAgentMessageArray(`newMessages`, newMessages);
+
 	// Outer loop: continues when queued follow-up messages arrive after agent would stop
 	while (true) {
 		let hasMoreToolCalls = true;
@@ -131,6 +139,7 @@ async function runLoop(
 		// Inner loop: process tool calls and steering messages
 		while (hasMoreToolCalls || pendingMessages.length > 0) {
 			if (!firstTurn) {
+				logger.debug(`[=>    ] turn_start`);
 				stream.push({ type: "turn_start" });
 			} else {
 				firstTurn = false;
@@ -138,6 +147,7 @@ async function runLoop(
 
 			// Process pending messages (inject before next assistant response)
 			if (pendingMessages.length > 0) {
+				logger.debug(`pendingMessages: ${pendingMessages.length}`);
 				for (const message of pendingMessages) {
 					stream.push({ type: "message_start", message });
 					stream.push({ type: "message_end", message });
@@ -148,8 +158,14 @@ async function runLoop(
 			}
 
 			// Stream assistant response
+			logger.debug(`sending to LLM and wait\n`);
+			printAgentMessageArray(`context messages`, currentContext.messages);
 			const message = await streamAssistantResponse(currentContext, config, signal, stream, streamFn);
+			logger.debug(`get response from LLM\n`);
+			printAgentMessage(message);
 			newMessages.push(message);
+			logger.debug(`newMessage push done\n`);
+			printAgentMessageArray(`newMessages`, newMessages);
 
 			if (message.stopReason === "error" || message.stopReason === "aborted") {
 				stream.push({ type: "turn_end", message, toolResults: [] });
@@ -164,6 +180,8 @@ async function runLoop(
 
 			const toolResults: ToolResultMessage[] = [];
 			if (hasMoreToolCalls) {
+				logger.debug(`exec tool call and wait\n`);
+				printAgentMessage(message);
 				const toolExecution = await executeToolCalls(
 					currentContext.tools,
 					message,
@@ -171,15 +189,20 @@ async function runLoop(
 					stream,
 					config.getSteeringMessages,
 				);
+				logger.debug(`tool call done\n`);
 				toolResults.push(...toolExecution.toolResults);
 				steeringAfterTools = toolExecution.steeringMessages ?? null;
+				//printAgentMessageArray(`toolResults`, toolResults);  // too much log
 
 				for (const result of toolResults) {
 					currentContext.messages.push(result);
 					newMessages.push(result);
 				}
+				printAgentMessageArray(`after tool context messages`, currentContext.messages);
+				printAgentMessageArray(`after tool newMessages`, newMessages);
 			}
 
+			logger.debug(`[=>    ] turn_end`);
 			stream.push({ type: "turn_end", message, toolResults });
 
 			// Get steering messages after turn completes
@@ -203,8 +226,11 @@ async function runLoop(
 		break;
 	}
 
+	logger.debug(`[=>    ] agent_end`);
 	stream.push({ type: "agent_end", messages: newMessages });
+	logger.debug(`[======] stream end`);
 	stream.end(newMessages);
+	logger.debug(`runLoop <<<`);
 }
 
 /**
