@@ -115,6 +115,7 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions", OpenA
 			options?.onPayload?.(params);
 
 			logger_ai.debug(`[=>     ] calling openai`);
+			logger_ai.debug(`systemPrompt = ${context.systemPrompt}`);
 			printMessageArray(`input`, context.messages);
 
 			const openaiStream = await client.chat.completions.create(params, { signal: options?.signal });
