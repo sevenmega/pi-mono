@@ -26,6 +26,11 @@ import type {
 	ToolCall,
 	ToolResultMessage,
 } from "../types.js";
+import {
+	logger_ai,
+	printMessage,
+	printMessageArray,
+} from "../debug.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { parseStreamingJson } from "../utils/json-parse.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
@@ -82,6 +87,8 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions", OpenA
 ): AssistantMessageEventStream => {
 	const stream = new AssistantMessageEventStream();
 
+	logger_ai.debug(`streamOpenAICompletions`);
+
 	(async () => {
 		const output: AssistantMessage = {
 			role: "assistant",
@@ -106,6 +113,10 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions", OpenA
 			const client = createClient(model, context, apiKey, options?.headers);
 			const params = buildParams(model, context, options);
 			options?.onPayload?.(params);
+
+			logger_ai.debug(`[=>     ] calling openai`);
+			printMessageArray(`input`, context.messages);
+
 			const openaiStream = await client.chat.completions.create(params, { signal: options?.signal });
 			stream.push({ type: "start", partial: output });
 
@@ -307,6 +318,9 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions", OpenA
 
 			stream.push({ type: "done", reason: output.stopReason, message: output });
 			stream.end();
+
+			logger_ai.debug(`[     <=] openai response`);
+			printMessageArray(`output`, [output]);
 		} catch (error) {
 			for (const block of output.content) delete (block as any).index;
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
