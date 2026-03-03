@@ -20,6 +20,11 @@ import type {
 	AgentToolResult,
 	StreamFn,
 } from "./types.js";
+import {
+	logger,
+	printAgentMessage,
+	printAgentMessageArray,
+} from "./debug.js";
 
 /**
  * Start an agent loop with a new prompt message.
@@ -33,6 +38,10 @@ export function agentLoop(
 	streamFn?: StreamFn,
 ): EventStream<AgentEvent, AgentMessage[]> {
 	const stream = createAgentStream();
+
+	logger.debug(`agentLoop >>>`);
+	printAgentMessageArray(`context messages`, context.messages);
+	printAgentMessageArray(`input prompts`, prompts);
 
 	(async () => {
 		const newMessages: AgentMessage[] = [...prompts];
@@ -51,6 +60,7 @@ export function agentLoop(
 		await runLoop(currentContext, newMessages, config, signal, stream, streamFn);
 	})();
 
+	logger.debug(`agentLoop <<<`);
 	return stream;
 }
 
