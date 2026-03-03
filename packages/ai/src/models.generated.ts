@@ -6091,7 +6091,8 @@ export const MODELS = {
 			name: "MiniMax M2.1",
 			api: "openai-completions",
 			provider: "opencode",
-			baseUrl: "https://opencode.ai/zen/v1",
+			//baseUrl: "https://opencode.ai/zen/v1",
+			baseUrl: "https://www.sophnet.com/api/open-apis/v1",
 			reasoning: true,
 			input: ["text"],
 			cost: {
